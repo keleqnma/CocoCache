@@ -1,3 +1,3 @@
-module cococache/v0
+module cococache
 
 go 1.15
