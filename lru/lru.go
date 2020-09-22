@@ -1,6 +1,8 @@
 package lru
 
-import "container/list"
+import (
+	"container/list"
+)
 
 const (
 	BYTE = 1 << (10 * iota)
@@ -70,9 +72,12 @@ func (c *Cache) Set(key string, value Value) {
 		c.eleMap[key] = ele
 		c.usedBytes += int64(len(key)) + int64(value.Len())
 	}
+	for c.maxBytes < c.usedBytes {
+		c.removeOldest()
+	}
 }
 
-func (c *Cache) RemoveOldest() {
+func (c *Cache) removeOldest() {
 	ele := c.eleList.Back()
 	if ele != nil {
 		c.eleList.Remove(ele)
@@ -82,8 +87,5 @@ func (c *Cache) RemoveOldest() {
 		if c.OnEvicted != nil {
 			c.OnEvicted(kv.key, kv.value)
 		}
-	}
-	for c.maxBytes < c.usedBytes {
-		c.RemoveOldest()
 	}
 }
