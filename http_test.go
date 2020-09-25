@@ -17,7 +17,7 @@ var testDB = map[string]string{
 }
 
 func serveHTTP() {
-	NewGroup("scores", 2<<10, GetterFunc(
+	NewCache(2<<10, GetterFunc(
 		func(key string) ([]byte, error) {
 			log.Println("[SlowDB] search key", key)
 			if v, ok := testDB[key]; ok {
@@ -39,7 +39,7 @@ func TestHTTPGet(t *testing.T) {
 	go serveHTTP()
 	time.Sleep(time.Second)
 
-	resp, err := http.Get("http://localhost:9999/_cococache/scores/Tom")
+	resp, err := http.Get("http://localhost:9999/_cococache/Tom")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestHTTPGet(t *testing.T) {
 	}
 
 	searchKey := "wejbdnwqdx"
-	resp, err = http.Get("http://localhost:9999/_cococache/scores/" + searchKey)
+	resp, err = http.Get("http://localhost:9999/_cococache/" + searchKey)
 	if err != nil {
 		t.Fatal(err)
 	}

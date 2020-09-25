@@ -13,7 +13,7 @@ var db = map[string]string{
 
 func TestGet(t *testing.T) {
 	loadCounts := make(map[string]int, len(db))
-	gee := NewGroup("scores", 2<<10, GetterFunc(
+	coco := NewCache(2<<10, GetterFunc(
 		func(key string) ([]byte, error) {
 			if v, ok := db[key]; ok {
 				if _, ok := loadCounts[key]; !ok {
@@ -26,15 +26,15 @@ func TestGet(t *testing.T) {
 		}))
 
 	for k, v := range db {
-		if view, err := gee.Get(k); err != nil || view.String() != v {
+		if view, err := coco.Get(k); err != nil || view.String() != v {
 			t.Fatal("failed to get value of Tom")
 		}
-		if _, err := gee.Get(k); err != nil || loadCounts[k] > 1 {
+		if _, err := coco.Get(k); err != nil || loadCounts[k] > 1 {
 			t.Fatalf("cache %s miss", k)
 		}
 	}
 
-	if view, err := gee.Get("unknown"); err == nil {
+	if view, err := coco.Get("unknown"); err == nil {
 		t.Fatalf("the value of unknow should be empty, but %s got", view)
 	}
 }

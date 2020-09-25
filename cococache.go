@@ -2,6 +2,7 @@ package cococache
 
 import (
 	"fmt"
+	"log"
 	"sync"
 )
 
@@ -18,43 +19,45 @@ func (f GetterFunc) Get(key string) ([]byte, error) {
 	return f(key)
 }
 
-type Group struct {
-	//namespace
-	name string
+type CocoCache struct {
 	//callback function
 	getter Getter
 	//cache
 	mainCache cache
+	peers     PeerPicker
 }
 
 var (
-	mu     sync.RWMutex
-	groups = make(map[string]*Group)
+	mu        sync.RWMutex
+	cocoCache *CocoCache
 )
 
-// NewGroup create a new instance of Group
-func NewGroup(name string, cacheBytes int64, getter Getter) *Group {
+// NewCache create a new instance of Group
+func NewCache(cacheBytes int64, getter Getter) *CocoCache {
 	mu.Lock()
 	defer mu.Unlock()
-	g := &Group{
-		name:      name,
+	cocoCache := &CocoCache{
 		getter:    getter,
 		mainCache: cache{cacheBytes: cacheBytes},
 	}
-	groups[name] = g
-	return g
+	return cocoCache
 }
 
-// GetGroup returns the named group previously created with NewGroup, or
+// RegisterPeers registers a PeerPicker for choosing remote peer
+func (g *CocoCache) RegisterPeers(peers PeerPicker) {
+	if g.peers != nil {
+		panic("RegisterPeerPicker called more than once")
+	}
+	g.peers = peers
+}
+
+// GetCache returns the named group previously created with NewGroup, or
 // nil if there's no such group.
-func GetGroup(name string) *Group {
-	mu.RLock()
-	g := groups[name]
-	mu.RUnlock()
-	return g
+func GetCache() *CocoCache {
+	return cocoCache
 }
 
-func (g *Group) Get(key string) (ByteView, error) {
+func (g *CocoCache) Get(key string) (ByteView, error) {
 	if key == "" {
 		return ByteView{}, fmt.Errorf("key is required")
 	}
@@ -66,11 +69,19 @@ func (g *Group) Get(key string) (ByteView, error) {
 	return g.load(key)
 }
 
-func (g *Group) load(key string) (value ByteView, err error) {
+func (g *CocoCache) load(key string) (value ByteView, err error) {
+	if g.peers != nil {
+		if peer, ok := g.peers.PickPeer(key); ok {
+			if value, err = g.getFromPeer(peer, key); err == nil {
+				return value, nil
+			}
+			log.Println("[CocoCache] Failed to get from peer", err)
+		}
+	}
 	return g.getLocally(key)
 }
 
-func (g *Group) getLocally(key string) (ByteView, error) {
+func (g *CocoCache) getLocally(key string) (ByteView, error) {
 	bytes, err := g.getter.Get(key)
 	if err != nil {
 		return ByteView{}, err
@@ -81,6 +92,14 @@ func (g *Group) getLocally(key string) (ByteView, error) {
 	return value, nil
 }
 
-func (g *Group) populateCache(key string, value ByteView) {
+func (g *CocoCache) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
+	bytes, err := peer.Get(key)
+	if err != nil {
+		return ByteView{}, err
+	}
+	return ByteView{b: bytes}, nil
+}
+
+func (g *CocoCache) populateCache(key string, value ByteView) {
 	g.mainCache.set(key, value)
 }
